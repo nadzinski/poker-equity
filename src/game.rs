@@ -58,9 +58,8 @@ impl Game {
     }
 
     pub fn get_player_hands(&self) -> Vec<Hand> {
-        self.hole_cards
-            .iter()
-            .map(|player_hole_cards| self.get_scoring_hand_for_player(player_hole_cards))
+        (0..self.hole_cards.len())
+            .map(|player| self.get_scoring_hand_for_player(player))
             .collect()
     }
 
@@ -75,12 +74,12 @@ impl Game {
         winning_players_and_hands
     }
 
-    fn get_scoring_hand_for_player<'a>(&'a self, player_hole_cards: &'a (Card, Card)) -> Hand<'a> {
+    fn get_scoring_hand_for_player(&self, player: usize) -> Hand {
         // Out of the 7 cards that can be used in a hand (2 hole cards plus 5 board cards), get
         // every possible 5 card hand combination, then find the highest-scoring hand.
         let mut all_cards: Vec<&Card> = Vec::new();
-        all_cards.push(&player_hole_cards.0);
-        all_cards.push(&player_hole_cards.1);
+        all_cards.push(&self.hole_cards[player].0);
+        all_cards.push(&self.hole_cards[player].1);
         all_cards.append(&mut self.board.iter().collect());
 
         let scoring_hand = all_cards
