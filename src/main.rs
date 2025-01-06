@@ -1,6 +1,7 @@
 mod cards;
 use cards::Card;
 mod equity;
+use equity::EquityResult;
 mod game;
 use game::GameSpec;
 mod hands;
@@ -17,14 +18,18 @@ fn main() {
     let game_spec = GameSpec { board, hole_cards };
 
     let results = equity::simulate_equity_from_game_spec(game_spec, Some(100000));
-    let zipped_percs = results
-        .win_percentages
-        .iter()
-        .zip(results.draw_percentages.iter());
-    for (player, (win_perc, draw_perc)) in zipped_percs.enumerate() {
+    for (
+        player,
+        EquityResult {
+            equity,
+            win_percentage,
+            draw_percentage,
+        },
+    ) in results.iter().enumerate()
+    {
         println!(
-            "Equity for player {}: {}% ({}% draw)",
-            player, win_perc, draw_perc
+            "Equity for player {}: {} ({}% hands were wins, {}% draws)",
+            player, equity, win_percentage, draw_percentage
         );
     }
 }

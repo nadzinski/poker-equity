@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Suit {
     Clubs,
     Hearts,
@@ -8,7 +8,7 @@ pub enum Suit {
     Spades,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Card {
     pub rank: u8,
     pub suit: Suit,
@@ -69,12 +69,15 @@ impl Card {
 
     pub fn create_deck() -> Vec<Card> {
         let suits = [Suit::Clubs, Suit::Hearts, Suit::Diamonds, Suit::Spades];
-        let cards: Vec<Card> = suits
+        suits
             .iter()
-            .copied()
-            .flat_map(|suit| (2..15).map(move |rank| Card { rank, suit }))
-            .collect();
-        cards
+            .flat_map(|suit| {
+                (2..15).map(|rank| Card {
+                    rank: rank,
+                    suit: suit.clone(),
+                })
+            })
+            .collect()
     }
 }
 

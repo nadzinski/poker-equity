@@ -1,7 +1,6 @@
 use crate::cards::Card;
 use itertools::Itertools;
 use std::cmp::Ordering;
-use std::cmp::Reverse;
 
 // Logic for types of hands and their relative value
 
@@ -28,6 +27,7 @@ pub enum HandType {
 // lifetimes of the Card references will each live at least as long as the Hand lifetime 'a.
 // That is to say, the references to the Cards must refer to valid existing things
 // for as long as the Hand exists.
+#[derive(Clone, Eq)]
 pub struct Hand<'a> {
     pub cards: Vec<&'a Card>,
     pub hand_type: HandType,
@@ -52,8 +52,6 @@ impl<'a> PartialEq for Hand<'a> {
         (self.level, self.score).eq(&(other.level, other.score))
     }
 }
-
-impl<'a> Eq for Hand<'a> {}
 
 impl<'a> Hand<'a> {
     pub fn new(cards: Vec<&Card>) -> Hand {
@@ -81,13 +79,18 @@ impl<'a> Hand<'a> {
     }
 }
 
+/// This function computes a (level, score) pair for a 5-card hand. Pairs for any two hands can be
+/// compared to determine the stronger hand (or if the hands are a draw). The "level" represents
+/// how strong the "Hand Type" is, e.g. Flush = 6 is stronger than Straight = 5. The "score" is a
+/// number that depends on the Hand Type and can be compared within hands of the same type to
+/// determine the stronger hand.
 #[rustfmt::skip]
 fn get_hand_type_level_and_score(cards: &Vec<&Card>) -> (HandType, u8, u64) {
-    let same_suit = same_suit(cards);
+    let all_same_suit = all_same_suit(cards);
     let straight_score = straight_score(cards);
     let (groupings, groupings_score) = get_groupings_and_score(cards);
 
-    match (groupings.as_slice(), same_suit, straight_score) {
+    match (groupings.as_slice(), all_same_suit, straight_score) {
         ([1, 1, 1, 1, 1], true,  Some(ss))  => (HandType::StraightFlush, 9, ss),
         ([4, 1],          false, None)      => (HandType::Quads, 8, groupings_score),
         ([3, 2],          false, None)      => (HandType::FullHouse, 7, groupings_score),
@@ -105,46 +108,38 @@ fn get_groupings_and_score(cards: &Vec<&Card>) -> (Vec<u8>, u64) {
     // generalized rank-grouping and scoring function for non-straight hands
     // sort the cards
     // group by (requires previous sort)
-    // re-sort by group size, rank
-    // extract grouping sizes
-    // score by BASE^5 * grouping1_rank + BASE^4 * grouping2_rank + ...
+    // re-sort by (group size, rank)
+    // unzip grouping sizes and ranks
+    // score by BASE * grouping1_rank + BASE^2 * grouping2_rank + ...
     const BASE: u64 = 16;
 
     let mut ordered_cards = cards.to_vec();
-    ordered_cards.sort_by_key(|card| Reverse(card.rank));
+    ordered_cards.sort_by_key(|card| card.rank);
 
-    let mut group_sizes_and_ranks = Vec::new();
-    for (rank, chunk) in &ordered_cards.iter().chunk_by(|card| card.rank) {
-        group_sizes_and_ranks.push((chunk.count(), rank));
-    }
-    group_sizes_and_ranks.sort();
-    group_sizes_and_ranks.reverse();
-
-    let group_sizes: Vec<u8> = group_sizes_and_ranks
+    let mut group_sizes_and_ranks: Vec<(u8, u8)> = ordered_cards
         .iter()
-        .map(|(size, _)| *size as u8)
+        .chunk_by(|card| card.rank)
+        .into_iter()
+        .map(|(rank, chunk)| (chunk.count() as u8, rank))
         .collect();
 
-    let ranks_iter = group_sizes_and_ranks.iter().map(|(_, rank)| *rank as u64);
-    let powers_iter = (0..5).rev().map(|n| BASE.pow(n));
-    let score: u64 = ranks_iter
-        .zip(powers_iter)
-        .map(|(rank, power)| rank * power)
+    group_sizes_and_ranks.sort();
+    let (mut group_sizes, ranks): (Vec<u8>, Vec<u8>) = group_sizes_and_ranks.into_iter().unzip();
+
+    group_sizes.reverse();
+
+    let score = ranks
+        .into_iter()
+        .enumerate()
+        .map(|(n, rank)| rank as u64 * BASE.pow(n as u32))
         .sum();
 
     (group_sizes, score)
 }
 
-fn same_suit(cards: &Vec<&Card>) -> bool {
-    let first_suit = cards[0].suit;
-    match cards
-        .iter()
-        .take_while(|card| card.suit == first_suit)
-        .count()
-    {
-        5 => true,
-        _ => false,
-    }
+fn all_same_suit(cards: &Vec<&Card>) -> bool {
+    let first_suit = cards[0].suit.clone();
+    cards.iter().all(|card| card.suit == first_suit)
 }
 
 fn straight_score(cards: &Vec<&Card>) -> Option<u64> {
@@ -157,6 +152,7 @@ fn straight_score(cards: &Vec<&Card>) -> Option<u64> {
     if ordered_ranks.as_slice() == [2, 3, 4, 5, 14] {
         return Some(1);
     }
+
     let lowest = ordered_ranks[0];
     let desired_straight: Vec<u8> = (0..5).map(|i| lowest + i).collect();
     if ordered_ranks == desired_straight {

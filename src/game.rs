@@ -51,11 +51,9 @@ impl Game {
     }
 
     pub fn deal_down_to_river(&mut self) {
-        let cards_in_board = self.board.len();
-        for n in 0..5 {
-            if n >= cards_in_board {
-                self.board.push(self.deck.pop().unwrap());
-            }
+        let cards_to_deal = 5 - self.board.len();
+        for _ in 0..cards_to_deal {
+            self.board.push(self.deck.pop().unwrap());
         }
     }
 
@@ -67,47 +65,30 @@ impl Game {
     }
 
     pub fn get_winning_players_and_hands(&self) -> Vec<(usize, Hand)> {
-        // There must be a better way to do this, but when I try it all in one
-        // iterator, the borrow checker complains because I'm trying to move out
-        // of `player_hands` while I still have a reference (one_best_hand)
-        // Hence the indirection of collecting the player numbers and then moving out
-        let player_hands: Vec<Hand> = self.get_player_hands();
-        let one_best_hand: &Hand = player_hands.iter().max().unwrap();
-        let winning_players: HashSet<usize> = HashSet::from_iter(
-            player_hands
-                .iter()
-                .enumerate()
-                .filter(|(_, hand)| hand == &one_best_hand)
-                .map(|(player, _)| player),
-        );
-
+        let player_hands = self.get_player_hands();
+        let best_hand = player_hands.iter().max().unwrap().clone();
         let winning_players_and_hands: Vec<(usize, Hand)> = player_hands
             .into_iter()
             .enumerate()
-            .filter(|(player, _)| winning_players.contains(player))
+            .filter(|(_, hand)| *hand == best_hand)
             .collect();
         winning_players_and_hands
     }
 
     fn get_scoring_hand_for_player<'a>(&'a self, player_hole_cards: &'a (Card, Card)) -> Hand<'a> {
-        let (hole_card_1, hole_card_2) = player_hole_cards;
+        // Out of the 7 cards that can be used in a hand (2 hole cards plus 5 board cards), get
+        // every possible 5 card hand combination, then find the highest-scoring hand.
         let mut all_cards: Vec<&Card> = Vec::new();
-        all_cards.push(&hole_card_1);
-        all_cards.push(&hole_card_2);
-        all_cards.extend::<Vec<&Card>>(self.board.iter().collect());
+        all_cards.push(&player_hole_cards.0);
+        all_cards.push(&player_hole_cards.1);
+        all_cards.append(&mut self.board.iter().collect());
 
-        let possible_card_combos: Vec<Vec<&Card>> = all_cards
-            .iter()
+        let scoring_hand = all_cards
+            .into_iter()
             .combinations(5)
-            .map(|cards: Vec<&&Card>| cards.iter().map(|&&c| c).collect())
-            .collect();
-
-        let player_hand: Hand = possible_card_combos
-            .iter()
-            .map(|cards: &Vec<&Card>| Hand::new(cards.to_vec()))
+            .map(|cards| Hand::new(cards))
             .max()
             .unwrap();
-
-        player_hand
+        scoring_hand
     }
 }
