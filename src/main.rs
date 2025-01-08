@@ -17,7 +17,7 @@ fn main() {
     hole_cards.push((Card::from_str("Ac"), Card::from_str("As")));
     let game_spec = GameSpec { board, hole_cards };
 
-    let results = equity::simulate_equity_from_game_spec(game_spec, Some(100000));
+    let results = equity::simulate_equity_from_game_spec(game_spec, Some(1000000));
     for (
         player,
         EquityResult {
